@@ -1,0 +1,17 @@
+{
+  "name": "visitas-templo-bahai",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Templo Bahá'í de Sudamérica — Sistema de Reservas",
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "dev:backend": "cd backend && bun run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "build:frontend": "cd frontend && npm run build",
+    "db:migrate": "cd backend && bunx prisma migrate dev",
+    "db:reset": "cd backend && bunx prisma migrate reset"
+  }
+}

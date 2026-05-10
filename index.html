@@ -1,0 +1,552 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Templo Bahá'í — Vista previa</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            templo: {
+              gold: "#fbdb94",
+              goldDeep: "#e6bf6a",
+              cream: "#fffdf6",
+              parchment: "#fbf6e6",
+              brown: "#403923",
+            },
+          },
+          fontFamily: {
+            serif: ['"Cormorant Garamond"', "Georgia", "serif"],
+            sans: ['"Inter"', "system-ui", "sans-serif"],
+          },
+        },
+      },
+    };
+  </script>
+  <style>
+    body { font-family: 'Inter', system-ui, sans-serif; background: #fffdf6; color: #403923; }
+    h1, h2, h3 { font-family: 'Cormorant Garamond', Georgia, serif; }
+    .input { @apply w-full rounded-md border border-templo-brown/20 bg-white px-3 py-2 text-sm text-templo-brown focus:outline-none focus:ring-2 focus:ring-templo-gold; }
+    /* Tailwind CDN doesn't support @apply — define manually */
+    .input { width:100%; box-sizing:border-box; padding:8px 12px; font-size:13px; background:white;
+             border:1px solid rgba(64,57,35,0.2); border-radius:6px; color:#403923; outline:none; }
+    .input:focus { border-color:transparent; box-shadow: 0 0 0 2px #fbdb94; }
+    .label { display:block; font-size:13px; font-weight:500; color:#403923; margin-bottom:6px; }
+    .err { color:#b91c1c; font-size:12px; margin-top:4px; }
+    .btn-primary { background:#fbdb94; color:#403923; border:none; padding:10px 20px;
+                   font-size:13px; font-weight:500; border-radius:6px; cursor:pointer; }
+    .btn-primary:hover { background:#e6bf6a; }
+    .btn-primary[disabled] { opacity:0.5; cursor:not-allowed; }
+    .day-cell { height:30px; display:flex; align-items:center; justify-content:center;
+                font-size:12px; border-radius:4px; cursor:pointer; user-select:none; }
+    .day-cell.disabled { color: rgba(64,57,35,0.25); cursor:not-allowed; }
+    .day-cell.selected { background:#fbdb94; color:#403923; font-weight:500; }
+    .day-cell:not(.disabled):not(.selected):hover { background: rgba(251,219,148,0.4); }
+    .slot { text-align:center; padding:10px 0; font-size:13px; border-radius:6px; cursor:pointer;
+            border:1px solid rgba(64,57,35,0.2); background:white; }
+    .slot.disabled { background:#fffdf6; color:rgba(64,57,35,0.3);
+                     border-color:rgba(64,57,35,0.1); cursor:not-allowed; }
+    .slot.selected { background:#fbdb94; border-color:#e6bf6a; font-weight:500; }
+    .lang-btn { padding:4px 14px; border-radius:999px; font-size:12px; cursor:pointer; border:none;
+                background:transparent; color:rgba(64,57,35,0.6); }
+    .lang-btn.active { background:#fbdb94; color:#403923; font-weight:500; }
+  </style>
+</head>
+<body>
+  <div id="app" class="max-w-3xl mx-auto px-4 pt-1 pb-8"></div>
+
+  <script>
+    // ----------------- DATA -----------------
+    const SECTORES = [
+      "Educación básica","Educación media","Educación técnica","Educación universitaria",
+      "Adulto Mayor","Organización sin fines de lucro - Proyección social","Municipalidad",
+      "Institución pública o gubernamental (no municipalidad)","Salud","Turismo","Religiosa","Otro",
+    ];
+    const RANGOS_EDADES = [
+      "Niños: 8 a 11 años","Prejóvenes: 12 a 14 años","Jóvenes: 15 a 17 años",
+      "Jóvenes: 18 años a 30 años","Adultos: 31 años a 60 años","Adultos mayores",
+      "Grupo variado: personas de todas las edades",
+    ];
+    const PROPOSITOS = [
+      "Turismo","Conocer los principios de la religión bahá'í","Conocer la arquitectura del Templo",
+      "Reflexión, meditación y terapia","Paisajismo y naturaleza","Proyección social","Recreación","Otro",
+    ];
+    const IDIOMAS = ["Español","Inglés","Portugués","Otro"];
+
+    // Translation map for dropdown labels. Canonical Spanish stays as the value;
+    // the EN/PT entries are display-only.
+    const OPTION_LABELS = {
+      "Educación básica": { es:"Educación básica", en:"Primary education", pt:"Educação básica" },
+      "Educación media": { es:"Educación media", en:"Secondary education", pt:"Ensino médio" },
+      "Educación técnica": { es:"Educación técnica", en:"Technical education", pt:"Educação técnica" },
+      "Educación universitaria": { es:"Educación universitaria", en:"University education", pt:"Educação universitária" },
+      "Adulto Mayor": { es:"Adulto Mayor", en:"Senior citizens", pt:"Idosos" },
+      "Organización sin fines de lucro - Proyección social": { es:"Organización sin fines de lucro - Proyección social", en:"Non-profit — Community outreach", pt:"Organização sem fins lucrativos — Projeção social" },
+      "Municipalidad": { es:"Municipalidad", en:"Municipality", pt:"Município" },
+      "Institución pública o gubernamental (no municipalidad)": { es:"Institución pública o gubernamental (no municipalidad)", en:"Public or government institution (non-municipal)", pt:"Instituição pública ou governamental (não município)" },
+      "Salud": { es:"Salud", en:"Health", pt:"Saúde" },
+      "Religiosa": { es:"Religiosa", en:"Religious", pt:"Religiosa" },
+
+      "Niños: 8 a 11 años": { es:"Niños: 8 a 11 años", en:"Children: 8 to 11 years", pt:"Crianças: 8 a 11 anos" },
+      "Prejóvenes: 12 a 14 años": { es:"Prejóvenes: 12 a 14 años", en:"Pre-teens: 12 to 14 years", pt:"Pré-jovens: 12 a 14 anos" },
+      "Jóvenes: 15 a 17 años": { es:"Jóvenes: 15 a 17 años", en:"Youth: 15 to 17 years", pt:"Jovens: 15 a 17 anos" },
+      "Jóvenes: 18 años a 30 años": { es:"Jóvenes: 18 años a 30 años", en:"Young adults: 18 to 30 years", pt:"Jovens: 18 a 30 anos" },
+      "Adultos: 31 años a 60 años": { es:"Adultos: 31 años a 60 años", en:"Adults: 31 to 60 years", pt:"Adultos: 31 a 60 anos" },
+      "Adultos mayores": { es:"Adultos mayores", en:"Seniors", pt:"Idosos" },
+      "Grupo variado: personas de todas las edades": { es:"Grupo variado: personas de todas las edades", en:"Mixed group: people of all ages", pt:"Grupo variado: pessoas de todas as idades" },
+
+      "Turismo": { es:"Turismo", en:"Tourism", pt:"Turismo" },
+      "Conocer los principios de la religión bahá'í": { es:"Conocer los principios de la religión bahá'í", en:"Learn about the principles of the Bahá'í Faith", pt:"Conhecer os princípios da religião bahá'í" },
+      "Conocer la arquitectura del Templo": { es:"Conocer la arquitectura del Templo", en:"Learn about the Temple's architecture", pt:"Conhecer a arquitetura do Templo" },
+      "Reflexión, meditación y terapia": { es:"Reflexión, meditación y terapia", en:"Reflection, meditation and therapy", pt:"Reflexão, meditação e terapia" },
+      "Paisajismo y naturaleza": { es:"Paisajismo y naturaleza", en:"Landscape and nature", pt:"Paisagismo e natureza" },
+      "Proyección social": { es:"Proyección social", en:"Community outreach", pt:"Projeção social" },
+      "Recreación": { es:"Recreación", en:"Recreation", pt:"Recreação" },
+
+      "Español": { es:"Español", en:"Spanish", pt:"Espanhol" },
+      "Inglés": { es:"Inglés", en:"English", pt:"Inglês" },
+      "Portugués": { es:"Portugués", en:"Portuguese", pt:"Português" },
+
+      "Internacional": { es:"Internacional", en:"International", pt:"Internacional" },
+
+      "Otro": { es:"Otro", en:"Other", pt:"Outro" },
+    };
+    const tOpt = (val) => (OPTION_LABELS[val] && OPTION_LABELS[val][state.lang]) || val;
+    const COUNTRY_CODES = [
+      ["+56","Chile","🇨🇱"],["+54","Argentina","🇦🇷"],["+591","Bolivia","🇧🇴"],
+      ["+55","Brasil","🇧🇷"],["+57","Colombia","🇨🇴"],["+52","México","🇲🇽"],
+      ["+51","Perú","🇵🇪"],["+598","Uruguay","🇺🇾"],["+1","USA / Canadá","🇺🇸"],
+      ["+34","España","🇪🇸"],
+    ];
+
+    const REGIONS_COMUNAS = {
+      "Arica y Parinacota": ["Arica","Camarones","General Lagos","Putre"],
+      "Tarapacá": ["Iquique","Alto Hospicio","Pozo Almonte","Pica","Huara"],
+      "Antofagasta": ["Antofagasta","Calama","Tocopilla","Mejillones","Taltal"],
+      "Atacama": ["Copiapó","Vallenar","Caldera","Chañaral","Diego de Almagro"],
+      "Coquimbo": ["La Serena","Coquimbo","Ovalle","Illapel","Vicuña"],
+      "Valparaíso": ["Valparaíso","Viña del Mar","Quilpué","Villa Alemana","San Antonio","Quillota","La Ligua"],
+      "Metropolitana": ["Santiago","Providencia","Las Condes","Vitacura","Ñuñoa","La Reina",
+        "Peñalolén","Macul","La Florida","Puente Alto","Maipú","Pudahuel","Quilicura",
+        "Recoleta","Independencia","San Miguel","Estación Central","Lo Barnechea"],
+      "O'Higgins": ["Rancagua","San Fernando","Rengo","Machalí","Santa Cruz"],
+      "Maule": ["Talca","Curicó","Linares","Constitución","Cauquenes"],
+      "Ñuble": ["Chillán","Chillán Viejo","San Carlos","Bulnes","Quirihue"],
+      "Biobío": ["Concepción","Talcahuano","Los Ángeles","Chiguayante","Coronel"],
+      "La Araucanía": ["Temuco","Padre Las Casas","Villarrica","Pucón","Angol"],
+      "Los Ríos": ["Valdivia","La Unión","Río Bueno","Panguipulli"],
+      "Los Lagos": ["Puerto Montt","Osorno","Castro","Ancud","Puerto Varas"],
+      "Aysén": ["Coyhaique","Aysén","Chile Chico","Cochrane"],
+      "Magallanes": ["Punta Arenas","Puerto Natales","Porvenir"],
+      "Internacional": [],
+    };
+    const REGIONS = Object.keys(REGIONS_COMUNAS);
+
+    const HOLIDAYS_MMDD = ["01-01","05-01","05-21","06-29","07-16","08-15","09-18","09-19","10-12","11-01","12-08","12-25"];
+
+    const ALL_SLOTS = ["10:00","11:00","12:00","15:00","16:00"];
+    const MORNING = ["10:00","11:00","12:00"];
+
+    const I18N = {
+      es: {
+        title: "Templo Bahá'í de Sudamérica", subtitle: "Solicitud de Reserva de Visita Grupal",
+        f1: "Nombre de la Institución", f2: "Sector de la Institución", f3: "Fecha tentativa de la visita",
+        f4: "Horario tentativo de la visita", f5: "Número de personas", f6: "Rango de edades de los visitantes",
+        f7: "Región", f8: "Comuna", f9: "Encargado de la Visita", f10: "Propósito de la Visita",
+        f11: "Idioma de la visita", f12: "Teléfono de contacto", f13: "Correo electrónico",
+        f14: "Requerimiento particular (opcional)", select: "Seleccione…", visitorsHelp: "Entre 10 y 200 personas",
+        pickDate: "Seleccione una fecha primero.", noSlots: "No hay horarios disponibles para esta fecha.",
+        submit: "Enviar solicitud", thanks: "Gracias",
+        thanksLine: "Pronto estaremos respondiendo su solicitud.",
+        notes: "NOTAS",
+        n1: "En caso de estar ocupado el horario y la fecha que ha sugerido, procederemos a facilitar fechas disponibles cercanas a su solicitud.",
+        n2: "Menores de edad deben estar acompañados por adultos.",
+        manage: "Gestionar mi visita", calHint: "Domingos y lunes cerrados · feriados y fechas sin cupo en gris",
+        sectorOther: "Especifique el sector", comunaOther: "Especifique la comuna",
+        purposeOther: "Especifique el propósito", languageOther: "Especifique el idioma",
+        pickRegion: "Elija una región primero",
+      },
+      en: {
+        title: "Bahá'í Temple of South America", subtitle: "Group Visit Reservation Request",
+        f1: "Name of the Institution", f2: "Institution Sector", f3: "Tentative visit date",
+        f4: "Tentative visit time", f5: "Number of visitors", f6: "Age range of visitors",
+        f7: "Region", f8: "Comuna", f9: "Visit Organizer", f10: "Purpose of the Visit",
+        f11: "Visit language", f12: "Contact phone", f13: "Email",
+        f14: "Special requirements (optional)", select: "Select…", visitorsHelp: "Between 10 and 200 people",
+        pickDate: "Please pick a date first.", noSlots: "No available times on this date.",
+        submit: "Submit request", thanks: "Thank you",
+        thanksLine: "We will respond to your request shortly.",
+        notes: "NOTES",
+        n1: "If the date or time you requested is unavailable, we'll suggest nearby alternatives.",
+        n2: "Minors must be accompanied by adults.",
+        manage: "Manage my visit", calHint: "Sundays and Mondays closed · holidays and full dates greyed",
+        sectorOther: "Specify the sector", comunaOther: "Specify the comuna",
+        purposeOther: "Specify the purpose", languageOther: "Specify the language",
+        pickRegion: "Pick a region first",
+      },
+      pt: {
+        title: "Templo Bahá'í da América do Sul", subtitle: "Solicitação de Reserva para Visita em Grupo",
+        f1: "Nome da Instituição", f2: "Setor da Instituição", f3: "Data prevista da visita",
+        f4: "Horário previsto da visita", f5: "Número de pessoas", f6: "Faixa etária dos visitantes",
+        f7: "Região", f8: "Comuna", f9: "Responsável pela visita", f10: "Propósito da Visita",
+        f11: "Idioma da visita", f12: "Telefone de contato", f13: "E-mail",
+        f14: "Requisito especial (opcional)", select: "Selecione…", visitorsHelp: "Entre 10 e 200 pessoas",
+        pickDate: "Selecione uma data primeiro.", noSlots: "Não há horários disponíveis nesta data.",
+        submit: "Enviar solicitação", thanks: "Obrigado",
+        thanksLine: "Em breve responderemos à sua solicitação.",
+        notes: "NOTAS",
+        n1: "Caso o horário ou a data sugeridos estejam ocupados, sugeriremos datas próximas disponíveis.",
+        n2: "Menores de idade devem estar acompanhados de adultos.",
+        manage: "Gerenciar minha visita", calHint: "Domingos e segundas fechados · feriados e datas cheias em cinza",
+        sectorOther: "Especifique o setor", comunaOther: "Especifique a comuna",
+        purposeOther: "Especifique o propósito", languageOther: "Especifique o idioma",
+        pickRegion: "Escolha uma região primeiro",
+      },
+    };
+
+    const MONTHS = {
+      es: ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"],
+      en: ["January","February","March","April","May","June","July","August","September","October","November","December"],
+      pt: ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"],
+    };
+    const WEEKDAYS = {
+      es: ["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"],
+      en: ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"],
+      pt: ["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"],
+    };
+
+    // ----------------- STATE -----------------
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    const minDate = new Date(today); minDate.setDate(minDate.getDate() + 7);
+
+    const state = {
+      lang: "es",
+      view: { year: minDate.getFullYear(), month: minDate.getMonth() + 1 },
+      submitted: false,
+      values: {
+        nombreInstitucion: "", sectorInstitucion: "", sectorOtro: "",
+        fechaVisita: "", horarioVisita: "", nroPersonas: "",
+        rangoEdades: "", region: "", comuna: "", comunaOtra: "",
+        encargadoVisita: "",
+        idiomaVisita: "Español", idiomaOtro: "",
+        propositoVisita: "", propositoOtro: "",
+        countryCode: "+56", telefonoNumero: "",
+        correoElectronico: "", requerimientoParticular: "",
+      },
+      errors: {},
+    };
+
+    // ----------------- HELPERS -----------------
+    const t = (k) => I18N[state.lang][k] ?? k;
+    const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+    const formatSlot = (s) => {
+      const [h,m] = s.split(":").map(Number);
+      const suffix = h < 12 ? "AM" : "PM";
+      const h12 = h % 12 === 0 ? 12 : h % 12;
+      return `${h12}:${String(m).padStart(2,"0")} ${suffix}`;
+    };
+    function isHoliday(year, month, day) {
+      const mmdd = `${String(month).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
+      return HOLIDAYS_MMDD.includes(mmdd);
+    }
+    function slotsForDow(dow) {
+      if (dow === 0 || dow === 1) return [];
+      if (dow === 6) return ["10:00"];
+      return ALL_SLOTS;
+    }
+    // Mock: pretend two morning slots are taken on the 10th of each month
+    function mockTakenSlots(fecha) {
+      const d = parseInt(fecha.split("-")[2], 10);
+      if (d === 10) return ["10:00", "11:00"]; // morning cap example
+      if (d === 12) return ["15:00"];
+      return [];
+    }
+    function dayDisabled(year, month, day) {
+      const date = new Date(year, month - 1, day);
+      const dow = date.getDay();
+      if (dow === 0 || dow === 1) return "Cerrado domingos y lunes";
+      if (date < minDate) return "Mínimo 7 días de anticipación";
+      if (isHoliday(year, month, day)) return "Feriado nacional";
+      return null;
+    }
+
+    // ----------------- RENDER -----------------
+    function render() {
+      const root = document.getElementById("app");
+      root.innerHTML = state.submitted ? renderConfirmation() : renderForm();
+      attachHandlers();
+    }
+
+    function renderConfirmation() {
+      return `
+        <div class="min-h-[60vh] flex items-center justify-center">
+          <div class="max-w-xl bg-white border border-templo-gold rounded-lg p-8 text-center w-full">
+            <div style="display:inline-flex;align-items:center;justify-content:center;width:48px;height:48px;border-radius:50%;background:#fbdb94;color:#403923;font-size:28px;line-height:1;margin-bottom:12px;">✓</div>
+            <h1 class="font-serif text-3xl mb-2">${t("thanks")}</h1>
+            <p class="text-templo-brown/80 mb-6">${t("thanksLine")}</p>
+            <div class="text-left bg-templo-gold/30 border border-templo-gold rounded-md p-4 text-sm text-templo-brown">
+              <div class="font-medium mb-2">${t("notes")}</div>
+              <ul class="list-disc pl-5 space-y-1">
+                <li>${t("n1")}</li><li>${t("n2")}</li>
+              </ul>
+            </div>
+            <button onclick="state.submitted=false; render();" class="btn-primary mt-6">${t("manage")}</button>
+          </div>
+        </div>`;
+    }
+
+    function renderForm() {
+      const v = state.values;
+      const e = state.errors;
+      const langBtn = (l, label) => `<button class="lang-btn ${state.lang===l?"active":""}" onclick="state.lang='${l}';render();">${label}</button>`;
+      return `
+        <header class="text-center mb-5">
+          <img src="frontend/public/templobahai-logo.png" alt="Templo Bahá'í de Sudamérica" style="display:block;margin:0 auto;width:100%;max-width:440px;">
+          <h1 class="font-serif text-3xl md:text-4xl" style="margin:12px 0 0;">${t("subtitle")}</h1>
+          <div class="inline-flex items-center gap-1 mt-3 bg-white rounded-full p-1" style="border:1px solid rgba(64,57,35,0.15);">
+            ${langBtn("es","Español")}${langBtn("en","English")}${langBtn("pt","Português")}
+          </div>
+        </header>
+
+        <form id="form" class="bg-white rounded-lg p-6 md:p-8 space-y-5" style="border:1px solid rgba(64,57,35,0.1);">
+
+          ${field("nombreInstitucion", `1. ${t("f1")}`, `<input class="input" data-field="nombreInstitucion" value="${escape(v.nombreInstitucion)}">`, e.nombreInstitucion)}
+
+          ${field("sectorInstitucion", `2. ${t("f2")}`,
+            `<select class="input" data-field="sectorInstitucion">
+               <option value="">${t("select")}</option>
+               ${SECTORES.map(s=>`<option value="${escape(s)}" ${v.sectorInstitucion===s?"selected":""}>${escape(tOpt(s))}</option>`).join("")}
+             </select>
+             ${v.sectorInstitucion==="Otro"
+               ? `<input class="input" style="margin-top:8px;" placeholder="${t("sectorOther")}" data-field="sectorOtro" value="${escape(v.sectorOtro)}">
+                  ${e.sectorOtro?`<p class="err">${e.sectorOtro}</p>`:""}`
+               : ""}`,
+            e.sectorInstitucion)}
+
+          ${field("fechaVisita", `3. ${t("f3")}`, renderCalendar(), e.fechaVisita)}
+
+          ${field("horarioVisita", `4. ${t("f4")}`, renderSlots(), e.horarioVisita)}
+
+          ${field("nroPersonas", `5. ${t("f5")}`,
+            `<input type="number" min="10" max="200" class="input" data-field="nroPersonas" value="${escape(v.nroPersonas)}">
+             <p style="font-size:11px;color:rgba(64,57,35,0.6);margin-top:4px;">${t("visitorsHelp")}</p>`,
+            e.nroPersonas)}
+
+          ${field("rangoEdades", `6. ${t("f6")}`,
+            `<select class="input" data-field="rangoEdades">
+               <option value="">${t("select")}</option>
+               ${RANGOS_EDADES.map(r=>`<option value="${escape(r)}" ${v.rangoEdades===r?"selected":""}>${escape(tOpt(r))}</option>`).join("")}
+             </select>`, e.rangoEdades)}
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            ${field("region", `7. ${t("f7")}`,
+              `<select class="input" data-field="region">
+                 <option value="">${t("select")}</option>
+                 ${REGIONS.map(r=>`<option value="${escape(r)}" ${v.region===r?"selected":""}>${escape(tOpt(r))}</option>`).join("")}
+               </select>`, e.region)}
+            ${field("comuna",
+              v.region === "Internacional" ? "8. País / Ciudad" : `8. ${t("f8")}`,
+              v.region === "Internacional"
+                ? `<input class="input" placeholder="País / Ciudad" data-field="comuna" value="${escape(v.comuna)}">`
+                : `<select class="input" data-field="comuna" ${v.region?"":"disabled"}>
+                     <option value="">${v.region?t("select"):t("pickRegion")}</option>
+                     ${(v.region?REGIONS_COMUNAS[v.region]:[]).map(c=>`<option ${v.comuna===c?"selected":""}>${c}</option>`).join("")}
+                   </select>`,
+              e.comuna)}
+          </div>
+
+          ${field("encargadoVisita", `9. ${t("f9")}`, `<input class="input" data-field="encargadoVisita" value="${escape(v.encargadoVisita)}">`, e.encargadoVisita)}
+
+          ${field("propositoVisita", `10. ${t("f10")}`,
+            `<select class="input" data-field="propositoVisita">
+               <option value="">${t("select")}</option>
+               ${PROPOSITOS.map(p=>`<option value="${escape(p)}" ${v.propositoVisita===p?"selected":""}>${escape(tOpt(p))}</option>`).join("")}
+             </select>
+             ${v.propositoVisita==="Otro"
+                ? `<input class="input" style="margin-top:8px;" placeholder="${t("purposeOther")}" data-field="propositoOtro" value="${escape(v.propositoOtro)}">
+                   ${e.propositoOtro?`<p class="err">${e.propositoOtro}</p>`:""}`
+                : ""}`, e.propositoVisita)}
+
+          ${field("idiomaVisita", `11. ${t("f11")}`,
+            `<select class="input" data-field="idiomaVisita">
+               ${IDIOMAS.map(i=>`<option value="${escape(i)}" ${v.idiomaVisita===i?"selected":""}>${escape(tOpt(i))}</option>`).join("")}
+             </select>
+             ${v.idiomaVisita==="Otro"
+                ? `<input class="input" style="margin-top:8px;" placeholder="${t("languageOther")}" data-field="idiomaOtro" value="${escape(v.idiomaOtro)}">
+                   ${e.idiomaOtro?`<p class="err">${e.idiomaOtro}</p>`:""}`
+                : ""}`, e.idiomaVisita)}
+
+          ${field("telefonoNumero", `12. ${t("f12")}`,
+            `<div class="flex gap-2">
+               <select class="input" style="max-width:140px;" data-field="countryCode">
+                 ${COUNTRY_CODES.map(([c,n,f])=>`<option value="${c}" ${v.countryCode===c?"selected":""}>${f} ${c}</option>`).join("")}
+               </select>
+               <input class="input" data-field="telefonoNumero" placeholder="9 8765 4321" value="${escape(v.telefonoNumero)}">
+             </div>`, e.telefonoNumero)}
+
+          ${field("correoElectronico", `13. ${t("f13")}`,
+            `<input type="email" class="input" data-field="correoElectronico" value="${escape(v.correoElectronico)}">`, e.correoElectronico)}
+
+          ${field("requerimientoParticular", `14. ${t("f14")}`,
+            `<textarea rows="3" class="input" data-field="requerimientoParticular">${escape(v.requerimientoParticular)}</textarea>`)}
+
+          <div class="pt-2">
+            <button type="submit" class="btn-primary">${t("submit")}</button>
+          </div>
+        </form>
+
+        <p style="text-align:center;font-size:11px;color:rgba(64,57,35,0.55);margin:24px 0 32px;">
+          Av. Diag. Las Torres 2000, Peñalolén · Santiago de Chile
+        </p>`;
+    }
+
+    function field(name, label, control, error) {
+      return `<div>
+        <label class="label">${label}</label>
+        ${control}
+        ${error ? `<p class="err">${error}</p>` : ""}
+      </div>`;
+    }
+    function escape(s) { return String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+
+    function renderCalendar() {
+      const { year, month } = state.view;
+      const firstDow = new Date(year, month - 1, 1).getDay();
+      const days = new Date(year, month, 0).getDate();
+      const cells = [];
+      for (let i = 0; i < firstDow; i++) cells.push("");
+      for (let d = 1; d <= days; d++) cells.push(d);
+      const selected = state.values.fechaVisita;
+      const grid = cells.map((d) => {
+        if (!d) return `<div></div>`;
+        const fecha = `${year}-${String(month).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+        const reason = dayDisabled(year, month, d);
+        const sel = selected === fecha;
+        return `<div class="day-cell ${reason?"disabled":""} ${sel?"selected":""}"
+                     data-date="${reason?"":fecha}" title="${reason||""}">${d}</div>`;
+      }).join("");
+      return `
+        <div style="border:1px solid rgba(64,57,35,0.15);border-radius:8px;padding:10px;background:white;max-width:320px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+            <button type="button" class="cal-nav" data-delta="-1" style="background:none;border:none;color:#403923;cursor:pointer;font-size:14px;padding:2px 6px;">‹</button>
+            <span class="font-serif" style="font-size:14px;">${MONTHS[state.lang][month-1]} ${year}</span>
+            <button type="button" class="cal-nav" data-delta="1" style="background:none;border:none;color:#403923;cursor:pointer;font-size:14px;padding:2px 6px;">›</button>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;font-size:10px;color:rgba(64,57,35,0.6);text-align:center;margin-bottom:2px;text-transform:uppercase;letter-spacing:0.4px;">
+            ${WEEKDAYS[state.lang].map(w=>`<div>${w}</div>`).join("")}
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;">${grid}</div>
+        </div>`;
+    }
+
+    function renderSlots() {
+      const fecha = state.values.fechaVisita;
+      if (!fecha) return `<p style="font-size:13px;color:rgba(64,57,35,0.6);">${t("pickDate")}</p>`;
+      const [y,m,d] = fecha.split("-").map(Number);
+      const dow = new Date(y, m - 1, d).getDay();
+      const valid = slotsForDow(dow);
+      const taken = mockTakenSlots(fecha);
+      const morningTaken = MORNING.filter(s => taken.includes(s)).length;
+
+      const cells = ALL_SLOTS.map(slot => {
+        const ok = valid.includes(slot);
+        const isTaken = taken.includes(slot);
+        const morningCap = MORNING.includes(slot) && morningTaken >= 2 && !taken.includes(slot);
+        const disabled = !ok || isTaken || morningCap;
+        const sel = state.values.horarioVisita === slot;
+        const cls = sel ? "slot selected" : disabled ? "slot disabled" : "slot";
+        const title = !ok ? "No disponible este día" : isTaken ? "Reservado" : morningCap ? "Cupo de mañana lleno" : "";
+        return `<div class="${cls}" data-slot="${disabled?"":slot}" title="${title}">${formatSlot(slot)}</div>`;
+      }).join("");
+      const note = morningTaken >= 2 ? `<p style="font-size:11px;color:rgba(64,57,35,0.6);margin-top:4px;">Cupo de mañana 2/2 — sólo tarde disponible</p>` : "";
+      return `<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;">${cells}</div>${note}`;
+    }
+
+    // ----------------- HANDLERS -----------------
+    function attachHandlers() {
+      // Field bindings
+      document.querySelectorAll("[data-field]").forEach(el => {
+        el.addEventListener("input", (ev) => {
+          const k = ev.target.dataset.field;
+          const prev = state.values[k];
+          state.values[k] = ev.target.value;
+          // Re-render only when the change actually changes the layout.
+          if (k === "sectorInstitucion" && (prev === "Otro") !== (ev.target.value === "Otro")) render();
+          else if (k === "region") render(); // region change swaps the comuna control
+          else if (k === "propositoVisita" && (prev === "Otro") !== (ev.target.value === "Otro")) render();
+          else if (k === "idiomaVisita" && (prev === "Otro") !== (ev.target.value === "Otro")) render();
+        });
+      });
+      // Calendar nav
+      document.querySelectorAll(".cal-nav").forEach(b => {
+        b.addEventListener("click", () => {
+          const delta = parseInt(b.dataset.delta, 10);
+          let { year, month } = state.view;
+          month += delta;
+          if (month < 1) { month = 12; year--; }
+          if (month > 12) { month = 1; year++; }
+          state.view = { year, month };
+          render();
+        });
+      });
+      // Date pick
+      document.querySelectorAll(".day-cell").forEach(c => {
+        const fecha = c.dataset.date;
+        if (!fecha) return;
+        c.addEventListener("click", () => {
+          state.values.fechaVisita = fecha;
+          state.values.horarioVisita = "";
+          render();
+        });
+      });
+      // Slot pick
+      document.querySelectorAll(".slot").forEach(c => {
+        const slot = c.dataset.slot;
+        if (!slot) return;
+        c.addEventListener("click", () => {
+          state.values.horarioVisita = slot;
+          render();
+        });
+      });
+      // Form submit
+      const form = document.getElementById("form");
+      if (form) form.addEventListener("submit", (e) => {
+        e.preventDefault();
+        const errs = validate();
+        state.errors = errs;
+        if (Object.keys(errs).length === 0) state.submitted = true;
+        render();
+      });
+    }
+
+    function validate() {
+      const e = {};
+      const v = state.values;
+      // All required except requerimientoParticular.
+      const need = ["nombreInstitucion","sectorInstitucion","fechaVisita","horarioVisita","nroPersonas",
+                    "rangoEdades","region","comuna","encargadoVisita","propositoVisita",
+                    "idiomaVisita","telefonoNumero","correoElectronico"];
+      need.forEach(k => { if (!v[k] || String(v[k]).trim() === "") e[k] = "Requerido"; });
+      // Conditional "Otro" text inputs.
+      if (v.sectorInstitucion === "Otro" && !v.sectorOtro?.trim()) e.sectorOtro = "Requerido";
+      if (v.propositoVisita === "Otro" && !v.propositoOtro?.trim()) e.propositoOtro = "Requerido";
+      if (v.idiomaVisita === "Otro" && !v.idiomaOtro?.trim()) e.idiomaOtro = "Requerido";
+      const n = parseInt(v.nroPersonas, 10);
+      if (v.nroPersonas && (isNaN(n) || n < 10)) e.nroPersonas = "Mínimo 10 personas.";
+      else if (v.nroPersonas && n > 200) e.nroPersonas = "Máximo 200 personas.";
+      if (v.correoElectronico && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.correoElectronico)) e.correoElectronico = "Correo electrónico inválido.";
+      if (v.telefonoNumero && !/^\d[\d\s-]{3,18}\d$/.test(v.telefonoNumero)) e.telefonoNumero = "Teléfono inválido.";
+      return e;
+    }
+
+    render();
+  </script>
+</body>
+</html>

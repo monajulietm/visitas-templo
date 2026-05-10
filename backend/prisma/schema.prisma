@@ -1,0 +1,42 @@
+// Prisma schema — Templo Bahá'í Sistema de Reservas
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Reservation {
+  id                       String   @id @default(cuid())
+  token                    String   @unique
+  nombreInstitucion        String
+  sectorInstitucion        String
+  fechaVisita              String   // YYYY-MM-DD
+  horarioVisita            String   // "10:00", "11:00", etc.
+  nroPersonas              Int
+  rangoEdades              String
+  region                   String
+  comuna                   String
+  encargadoVisita          String
+  idiomaVisita             String
+  propositoVisita          String   // typo corrected from `proposiotoVisita`
+  telefonoContacto         String
+  correoElectronico        String
+  requerimientoParticular  String?
+  cancelled                Boolean  @default(false)
+  createdAt                DateTime @default(now())
+
+  @@index([fechaVisita])
+  @@index([cancelled])
+}
+
+model BlockedDate {
+  id        String   @id @default(cuid())
+  fecha     String   @unique // YYYY-MM-DD
+  reason    String?
+  slots     String?  // null = full day, otherwise comma-separated slots e.g. "10:00,11:00"
+  createdAt DateTime @default(now())
+}

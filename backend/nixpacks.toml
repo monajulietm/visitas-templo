@@ -1,0 +1,14 @@
+# Nixpacks build hints for Railway. Bun is detected automatically; this just
+# pins versions and ensures the Prisma engines are present at runtime.
+
+[phases.setup]
+nixPkgs = ["nodejs_20", "bun", "openssl"]
+
+[phases.install]
+cmds = ["bun install --frozen-lockfile"]
+
+[phases.build]
+cmds = ["bunx prisma generate"]
+
+[start]
+cmd = "bunx prisma db push --skip-generate --accept-data-loss && bun run src/index.ts"

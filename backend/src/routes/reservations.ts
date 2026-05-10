@@ -10,7 +10,6 @@ import {
 } from "../lib/availability.js";
 import { ReservationCreateSchema } from "../lib/schemas.js";
 import { newReservationToken } from "../lib/auth.js";
-import { rateLimit } from "../lib/rate-limit.js";
 import { verifyCaptcha } from "../lib/captcha.js";
 import { sendConfirmationEmail } from "../lib/email.js";
 import { logReservationToSheet } from "../lib/sheets.js";
@@ -42,13 +41,6 @@ reservationRoutes.post("/", async (c) => {
     c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ||
     c.req.header("x-real-ip") ||
     "anon";
-  const rl = rateLimit("reservations", ip, { max: 3, windowMs: 60 * 60 * 1000 });
-  if (!rl.allowed) {
-    return c.json(
-      { error: "Demasiadas solicitudes. Intente más tarde." },
-      429
-    );
-  }
 
   let body: unknown;
   try {

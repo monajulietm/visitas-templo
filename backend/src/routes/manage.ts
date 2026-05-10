@@ -4,7 +4,7 @@ import { ReservationUpdateSchema } from "../lib/schemas.js";
 import { getAvailability, isMinAdvance } from "../lib/availability.js";
 import { sendUpdateEmail } from "../lib/email.js";
 import { isChileanHoliday } from "../lib/holidays.js";
-import { updateReservationInSheet, markReservationCancelledInSheet } from "../lib/sheets.js";
+import { updateReservationInSheet, deleteReservationRowInSheet } from "../lib/sheets.js";
 
 export const manageRoutes = new Hono();
 
@@ -75,8 +75,8 @@ manageRoutes.delete("/:token", async (c) => {
   const token = c.req.param("token");
   const r = await prisma.reservation.findUnique({ where: { token } });
   if (!r) return c.json({ error: "Reserva no encontrada" }, 404);
-  if (r.cancelled) return c.json({ ok: true, alreadyCancelled: true });
-  const updated = await prisma.reservation.update({ where: { token }, data: { cancelled: true } });
-  void markReservationCancelledInSheet(updated);
+  // Delete the sheet row first (best effort), then hard-delete the DB row.
+  await deleteReservationRowInSheet(r);
+  await prisma.reservation.delete({ where: { token } });
   return c.json({ ok: true });
 });

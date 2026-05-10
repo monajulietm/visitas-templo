@@ -155,35 +155,46 @@ export async function updateReservationInSheet(r: Reservation): Promise<void> {
   }
 }
 
-/** Mark the reservation row as cancelled in-place by prefixing the Nombre column. */
-export async function markReservationCancelledInSheet(r: Reservation): Promise<void> {
+/** Delete the reservation's row from the sheet entirely. Used when a visitor
+ * cancels — leaves no trace in either the DB or the sheet. */
+export async function deleteReservationRowInSheet(r: Reservation): Promise<void> {
   const ctx = getClient();
   if (!ctx) {
-    console.log(`[sheets:stub] would mark row cancelled for reservation ${r.id}`);
+    console.log(`[sheets:stub] would delete row for reservation ${r.id}`);
     return;
   }
   try {
     const rowNumber = await findRowByReservationId(r.id);
     if (rowNumber < 1) {
-      console.warn(`[sheets] no row found for reservation ${r.id} (cancellation)`);
+      console.warn(`[sheets] no row found for reservation ${r.id} (delete)`);
       return;
     }
     const sheets = google.sheets({ version: "v4", auth: ctx.auth });
-    // If the encargado isn't already prefixed, add "[CANCELADA] ".
-    const current = await sheets.spreadsheets.values.get({
+    // Need the tab's numeric sheetId for the deleteDimension request.
+    const meta = await sheets.spreadsheets.get({ spreadsheetId: ctx.sheetId });
+    const tab = meta.data.sheets?.find((s) => s.properties?.title === ctx.tab);
+    const sheetIdNumeric = tab?.properties?.sheetId;
+    if (sheetIdNumeric == null) {
+      console.warn(`[sheets] could not resolve numeric sheetId for tab "${ctx.tab}"`);
+      return;
+    }
+    await sheets.spreadsheets.batchUpdate({
       spreadsheetId: ctx.sheetId,
-      range: `${ctx.tab}!E${rowNumber}`,
-    });
-    const existing = (current.data.values?.[0]?.[0] ?? "") as string;
-    if (existing.startsWith("[CANCELADA]")) return;
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: ctx.sheetId,
-      range: `${ctx.tab}!E${rowNumber}`,
-      valueInputOption: "USER_ENTERED",
-      requestBody: { values: [[`[CANCELADA] ${existing}`]] },
+      requestBody: {
+        requests: [{
+          deleteDimension: {
+            range: {
+              sheetId: sheetIdNumeric,
+              dimension: "ROWS",
+              startIndex: rowNumber - 1, // API expects 0-indexed
+              endIndex: rowNumber,
+            },
+          },
+        }],
+      },
     });
   } catch (err) {
-    console.error("[sheets] cancel-mark failed:", err);
+    console.error("[sheets] delete-row failed:", err);
   }
 }
 

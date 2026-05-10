@@ -74,4 +74,14 @@ export const api = {
       `/api/admin/import-sheet?future=${futureOnly ? 1 : 0}`,
       { method: "POST", adminToken: t }
     ),
+  adminClearImports: (t: string) =>
+    request<{ ok: true; deleted: number; sheetCellsCleared: number }>(
+      "/api/admin/clear-imports",
+      { method: "POST", adminToken: t }
+    ),
+  adminImportFeriados: (t: string) =>
+    request<{ ok: true; totalRead: number; upserted: number; skipped: number; errors: string[] }>(
+      "/api/admin/import-feriados",
+      { method: "POST", adminToken: t }
+    ),
 };

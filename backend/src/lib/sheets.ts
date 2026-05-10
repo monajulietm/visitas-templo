@@ -213,6 +213,33 @@ export async function setRowEventId(rowNumber: number, id: string): Promise<void
   });
 }
 
+/** Clear column R for any rows whose DB id is in the given set. Best-effort. */
+export async function clearRowEventIdsForDbIds(dbIds: Set<string>): Promise<number> {
+  if (dbIds.size === 0) return 0;
+  const ctx = getClient();
+  if (!ctx) return 0;
+  const sheets = google.sheets({ version: "v4", auth: ctx.auth });
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: ctx.sheetId,
+    range: `${ctx.tab}!R:R`,
+  });
+  const col = res.data.values ?? [];
+  const ranges: string[] = [];
+  for (let i = 0; i < col.length; i++) {
+    const v = (col[i]?.[0] ?? "").trim();
+    if (v && dbIds.has(v)) ranges.push(`${ctx.tab}!R${i + 1}`);
+  }
+  if (ranges.length === 0) return 0;
+  await sheets.spreadsheets.values.batchUpdate({
+    spreadsheetId: ctx.sheetId,
+    requestBody: {
+      valueInputOption: "RAW",
+      data: ranges.map((range) => ({ range, values: [[""]] })),
+    },
+  });
+  return ranges.length;
+}
+
 /** Verify connectivity and that the service account can read the configured tab. */
 export async function pingSheet(): Promise<{ ok: boolean; detail: string }> {
   const ctx = getClient();

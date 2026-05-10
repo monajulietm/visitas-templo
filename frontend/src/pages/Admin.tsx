@@ -258,6 +258,21 @@ function ReservationsList({ token }: { token: string }) {
     }
   }
 
+  async function runClearImports() {
+    if (!confirm("Esto eliminará todas las reservas importadas desde la planilla. ¿Continuar?")) return;
+    setImporting(true);
+    setImportMsg(null);
+    try {
+      const res = await api.adminClearImports(token);
+      setImportMsg(`Eliminadas: ${res.deleted} · Celdas R limpiadas en planilla: ${res.sheetCellsCleared}`);
+      load();
+    } catch (e: any) {
+      setImportMsg(`Error: ${e.message}`);
+    } finally {
+      setImporting(false);
+    }
+  }
+
   const filtered = useMemo(() => {
     const q = filter.toLowerCase();
     return items.filter((r) =>
@@ -286,6 +301,13 @@ function ReservationsList({ token }: { token: string }) {
           className="bg-templo-deepgold text-templo-ink font-medium text-sm px-3 py-2 rounded-md hover:opacity-90 disabled:opacity-50"
         >
           {importing ? "Importando…" : "Importar desde planilla"}
+        </button>
+        <button
+          onClick={runClearImports}
+          disabled={importing}
+          className="border border-red-400/50 text-red-300 font-medium text-sm px-3 py-2 rounded-md hover:bg-red-500/10 disabled:opacity-50"
+        >
+          Limpiar importaciones
         </button>
       </div>
       {importMsg && (
@@ -336,6 +358,8 @@ function BlockedDates({ token }: { token: string }) {
   const [reason, setReason] = useState("");
   const [pickedSlots, setPickedSlots] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const [importing, setImporting] = useState(false);
+  const [importMsg, setImportMsg] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
@@ -350,6 +374,21 @@ function BlockedDates({ token }: { token: string }) {
     await api.adminBlockDate(token, { fecha, reason: reason || undefined, slots: pickedSlots });
     setFecha(""); setReason(""); setPickedSlots([]);
     load();
+  }
+
+  async function importFeriados() {
+    if (!confirm("Importar (o actualizar) todas las fechas de la pestaña 'Feriados' de la planilla?")) return;
+    setImporting(true);
+    setImportMsg(null);
+    try {
+      const res = await api.adminImportFeriados(token);
+      setImportMsg(`Actualizadas: ${res.upserted} · Total leídas: ${res.totalRead}${res.errors.length ? ` · Errores: ${res.errors.length}` : ""}`);
+      load();
+    } catch (e: any) {
+      setImportMsg(`Error: ${e.message}`);
+    } finally {
+      setImporting(false);
+    }
   }
 
   async function remove(f: string) {
@@ -399,7 +438,21 @@ function BlockedDates({ token }: { token: string }) {
       </form>
 
       <div className="bg-templo-inkLight border border-templo-deepgold/10 rounded-lg p-5">
-        <h2 className="font-serif text-lg text-templo-deepgold mb-3">Fechas bloqueadas</h2>
+        <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
+          <h2 className="font-serif text-lg text-templo-deepgold">Fechas bloqueadas</h2>
+          <button
+            onClick={importFeriados}
+            disabled={importing}
+            className="bg-templo-deepgold text-templo-ink font-medium text-xs px-3 py-1.5 rounded-md hover:opacity-90 disabled:opacity-50"
+          >
+            {importing ? "Importando…" : "Importar feriados"}
+          </button>
+        </div>
+        {importMsg && (
+          <div className="mb-3 text-xs text-templo-deepgold/80 bg-templo-deepgold/10 border border-templo-deepgold/20 rounded-md px-2 py-1.5">
+            {importMsg}
+          </div>
+        )}
         {list.length === 0 ? (
           <p className="text-sm text-templo-deepgold/50">Sin fechas bloqueadas.</p>
         ) : (

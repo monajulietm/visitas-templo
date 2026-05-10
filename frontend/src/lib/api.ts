@@ -48,40 +48,4 @@ export const api = {
   cancelReservation: (token: string) =>
     request<{ ok: true }>(`/api/manage/${token}`, { method: "DELETE" }),
 
-  // Admin
-  adminLogin: (password: string) =>
-    request<{ ok: true; token: string }>("/api/admin/login", {
-      method: "POST",
-      body: JSON.stringify({ password }),
-    }),
-  adminStats: (t: string) => request<any>("/api/admin/stats", { adminToken: t }),
-  adminReservations: (t: string) =>
-    request<{ reservations: any[] }>("/api/admin/reservations", { adminToken: t }),
-  adminDeleteReservation: (t: string, id: string) =>
-    request<{ ok: true }>(`/api/admin/reservations/${id}`, { method: "DELETE", adminToken: t }),
-  adminBlockedDates: (t: string) =>
-    request<{ blockedDates: any[] }>("/api/admin/blocked-dates", { adminToken: t }),
-  adminBlockDate: (t: string, body: { fecha: string; reason?: string; slots?: string[] }) =>
-    request<{ ok: true; blockedDate: any }>("/api/admin/blocked-dates", {
-      method: "POST",
-      body: JSON.stringify(body),
-      adminToken: t,
-    }),
-  adminUnblockDate: (t: string, fecha: string) =>
-    request<{ ok: true }>(`/api/admin/blocked-dates/${fecha}`, { method: "DELETE", adminToken: t }),
-  adminImportSheet: (t: string, futureOnly = true) =>
-    request<{ ok: true; futureOnly: boolean; totalRowsRead: number; created: number; skipped: number; errors: string[] }>(
-      `/api/admin/import-sheet?future=${futureOnly ? 1 : 0}`,
-      { method: "POST", adminToken: t }
-    ),
-  adminClearImports: (t: string) =>
-    request<{ ok: true; deleted: number; sheetCellsCleared: number }>(
-      "/api/admin/clear-imports",
-      { method: "POST", adminToken: t }
-    ),
-  adminImportFeriados: (t: string) =>
-    request<{ ok: true; totalRead: number; upserted: number; skipped: number; errors: string[] }>(
-      "/api/admin/import-feriados",
-      { method: "POST", adminToken: t }
-    ),
 };

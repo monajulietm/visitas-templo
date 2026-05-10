@@ -11,7 +11,9 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
     "sheets:test": "bun run scripts/test-sheets.ts",
-    "email:test": "bun run scripts/test-email.ts"
+    "email:test": "bun run scripts/test-email.ts",
+    "sheet:import": "bun run scripts/import-from-sheet.ts",
+    "sheet:audit": "bun run scripts/audit-sheet-vs-db.ts"
   },
   "dependencies": {
     "@hono/node-server": "^1.13.7",

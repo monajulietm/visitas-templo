@@ -4,6 +4,7 @@ import { ReservationUpdateSchema } from "../lib/schemas.js";
 import { getAvailability, isMinAdvance } from "../lib/availability.js";
 import { sendUpdateEmail } from "../lib/email.js";
 import { isChileanHoliday } from "../lib/holidays.js";
+import { updateReservationInSheet, markReservationCancelledInSheet } from "../lib/sheets.js";
 
 export const manageRoutes = new Hono();
 
@@ -65,6 +66,7 @@ manageRoutes.patch("/:token", async (c) => {
 
   const frontendUrl = process.env.FRONTEND_URL || "http://localhost:8000";
   void sendUpdateEmail(updated, frontendUrl);
+  void updateReservationInSheet(updated);
 
   return c.json({ ok: true, reservation: updated });
 });
@@ -74,6 +76,7 @@ manageRoutes.delete("/:token", async (c) => {
   const r = await prisma.reservation.findUnique({ where: { token } });
   if (!r) return c.json({ error: "Reserva no encontrada" }, 404);
   if (r.cancelled) return c.json({ ok: true, alreadyCancelled: true });
-  await prisma.reservation.update({ where: { token }, data: { cancelled: true } });
+  const updated = await prisma.reservation.update({ where: { token }, data: { cancelled: true } });
+  void markReservationCancelledInSheet(updated);
   return c.json({ ok: true });
 });

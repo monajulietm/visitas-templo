@@ -76,7 +76,7 @@ export async function logReservationToSheet(r: Reservation): Promise<void> {
       mesVisita,                           // N — Mes Visita
       anioVisita,                          // O — Año Vista
       periodoEB,                           // P — Periodo EB
-      "",                                  // Q — Event ID (left blank)
+      r.id,                                // Q — Event ID (DB reservation id, used to find this row again later)
     ];
 
     const sheets = google.sheets({ version: "v4", auth: ctx.auth });
@@ -90,6 +90,122 @@ export async function logReservationToSheet(r: Reservation): Promise<void> {
   } catch (err) {
     console.error("[sheets] append failed:", err);
   }
+}
+
+/** 1-indexed row number where reservation `id` lives in column Q. -1 if not found. */
+async function findRowByReservationId(id: string): Promise<number> {
+  const ctx = getClient();
+  if (!ctx) return -1;
+  const sheets = google.sheets({ version: "v4", auth: ctx.auth });
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: ctx.sheetId,
+    range: `${ctx.tab}!Q:Q`,
+  });
+  const col = res.data.values ?? [];
+  for (let i = 0; i < col.length; i++) {
+    if ((col[i]?.[0] ?? "") === id) return i + 1; // sheet rows are 1-indexed
+  }
+  return -1;
+}
+
+/** Update an existing Sheet row in place to reflect new date/time/personas. */
+export async function updateReservationInSheet(r: Reservation): Promise<void> {
+  const ctx = getClient();
+  if (!ctx) {
+    console.log(`[sheets:stub] would update row for reservation ${r.id}`);
+    return;
+  }
+  try {
+    const rowNumber = await findRowByReservationId(r.id);
+    if (rowNumber < 1) {
+      console.warn(`[sheets] no row found for reservation ${r.id} — falling back to append`);
+      await logReservationToSheet(r);
+      return;
+    }
+    const [vy, vm, vd] = r.fechaVisita.split("-").map(Number);
+    const [hh, mm] = r.horarioVisita.split(":").map(Number);
+    const visitAt = new Date(vy, vm - 1, vd, hh, mm, 0, 0);
+    const codigo = toSheetSerial(visitAt);
+    const periodoEB = bahaiEraYear(visitAt);
+
+    const sheets = google.sheets({ version: "v4", auth: ctx.auth });
+    // Update only the fields the manage page can change: A, B, C, D, N, O, P (date-derived + personas).
+    await sheets.spreadsheets.values.batchUpdate({
+      spreadsheetId: ctx.sheetId,
+      requestBody: {
+        valueInputOption: "USER_ENTERED",
+        data: [
+          { range: `${ctx.tab}!A${rowNumber}`, values: [[codigo]] },
+          { range: `${ctx.tab}!B${rowNumber}`, values: [[formatVisitDate(r.fechaVisita)]] },
+          { range: `${ctx.tab}!C${rowNumber}`, values: [[r.horarioVisita]] },
+          { range: `${ctx.tab}!D${rowNumber}`, values: [[r.nroPersonas]] },
+          { range: `${ctx.tab}!N${rowNumber}`, values: [[vm]] },
+          { range: `${ctx.tab}!O${rowNumber}`, values: [[vy]] },
+          { range: `${ctx.tab}!P${rowNumber}`, values: [[periodoEB]] },
+        ],
+      },
+    });
+  } catch (err) {
+    console.error("[sheets] update failed:", err);
+  }
+}
+
+/** Mark the reservation row as cancelled in-place by prefixing the Nombre column. */
+export async function markReservationCancelledInSheet(r: Reservation): Promise<void> {
+  const ctx = getClient();
+  if (!ctx) {
+    console.log(`[sheets:stub] would mark row cancelled for reservation ${r.id}`);
+    return;
+  }
+  try {
+    const rowNumber = await findRowByReservationId(r.id);
+    if (rowNumber < 1) {
+      console.warn(`[sheets] no row found for reservation ${r.id} (cancellation)`);
+      return;
+    }
+    const sheets = google.sheets({ version: "v4", auth: ctx.auth });
+    // If the encargado isn't already prefixed, add "[CANCELADA] ".
+    const current = await sheets.spreadsheets.values.get({
+      spreadsheetId: ctx.sheetId,
+      range: `${ctx.tab}!E${rowNumber}`,
+    });
+    const existing = (current.data.values?.[0]?.[0] ?? "") as string;
+    if (existing.startsWith("[CANCELADA]")) return;
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: ctx.sheetId,
+      range: `${ctx.tab}!E${rowNumber}`,
+      valueInputOption: "USER_ENTERED",
+      requestBody: { values: [[`[CANCELADA] ${existing}`]] },
+    });
+  } catch (err) {
+    console.error("[sheets] cancel-mark failed:", err);
+  }
+}
+
+/** Read all rows of the registry tab. Used by import + audit scripts. */
+export async function readAllReservationRows(): Promise<{ row: any[]; rowNumber: number }[]> {
+  const ctx = getClient();
+  if (!ctx) return [];
+  const sheets = google.sheets({ version: "v4", auth: ctx.auth });
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: ctx.sheetId,
+    range: `${ctx.tab}!A3:Q`, // skip the title (row 1) and header (row 2) rows
+  });
+  const values = res.data.values ?? [];
+  return values.map((row, i) => ({ row, rowNumber: i + 3 }));
+}
+
+/** Write back into a row's Event ID column. Used by the import script. */
+export async function setRowEventId(rowNumber: number, id: string): Promise<void> {
+  const ctx = getClient();
+  if (!ctx) return;
+  const sheets = google.sheets({ version: "v4", auth: ctx.auth });
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: ctx.sheetId,
+    range: `${ctx.tab}!Q${rowNumber}`,
+    valueInputOption: "RAW",
+    requestBody: { values: [[id]] },
+  });
 }
 
 /** Verify connectivity and that the service account can read the configured tab. */

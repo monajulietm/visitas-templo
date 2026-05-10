@@ -76,13 +76,14 @@ export async function logReservationToSheet(r: Reservation): Promise<void> {
       mesVisita,                           // N — Mes Visita
       anioVisita,                          // O — Año Vista
       periodoEB,                           // P — Periodo EB
-      r.id,                                // Q — Event ID (DB reservation id, used to find this row again later)
+      "",                                  // Q — Event ID (legacy Google Calendar IDs live here, leave blank for new rows)
+      r.id,                                // R — DB reservation id (our system uses this column)
     ];
 
     const sheets = google.sheets({ version: "v4", auth: ctx.auth });
     await sheets.spreadsheets.values.append({
       spreadsheetId: ctx.sheetId,
-      range: `${ctx.tab}!A:Q`,
+      range: `${ctx.tab}!A:R`,
       valueInputOption: "USER_ENTERED",
       insertDataOption: "INSERT_ROWS",
       requestBody: { values: [row] },
@@ -92,18 +93,22 @@ export async function logReservationToSheet(r: Reservation): Promise<void> {
   }
 }
 
-/** 1-indexed row number where reservation `id` lives in column Q. -1 if not found. */
+/** 1-indexed row number where reservation `id` lives. Checks column R first
+ * (current home for DB IDs), then column Q for backward compatibility with
+ * any rows that wrote into Q before the column-R migration. */
 async function findRowByReservationId(id: string): Promise<number> {
   const ctx = getClient();
   if (!ctx) return -1;
   const sheets = google.sheets({ version: "v4", auth: ctx.auth });
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: ctx.sheetId,
-    range: `${ctx.tab}!Q:Q`,
+    range: `${ctx.tab}!Q:R`,
   });
   const col = res.data.values ?? [];
   for (let i = 0; i < col.length; i++) {
-    if ((col[i]?.[0] ?? "") === id) return i + 1; // sheet rows are 1-indexed
+    const q = col[i]?.[0] ?? "";
+    const r = col[i]?.[1] ?? "";
+    if (r === id || q === id) return i + 1; // sheet rows are 1-indexed
   }
   return -1;
 }
@@ -189,20 +194,20 @@ export async function readAllReservationRows(): Promise<{ row: any[]; rowNumber:
   const sheets = google.sheets({ version: "v4", auth: ctx.auth });
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: ctx.sheetId,
-    range: `${ctx.tab}!A3:Q`, // skip the title (row 1) and header (row 2) rows
+    range: `${ctx.tab}!A3:R`, // skip title row + header row; include the new column R
   });
   const values = res.data.values ?? [];
   return values.map((row, i) => ({ row, rowNumber: i + 3 }));
 }
 
-/** Write back into a row's Event ID column. Used by the import script. */
+/** Write our DB reservation id into column R for a given row. */
 export async function setRowEventId(rowNumber: number, id: string): Promise<void> {
   const ctx = getClient();
   if (!ctx) return;
   const sheets = google.sheets({ version: "v4", auth: ctx.auth });
   await sheets.spreadsheets.values.update({
     spreadsheetId: ctx.sheetId,
-    range: `${ctx.tab}!Q${rowNumber}`,
+    range: `${ctx.tab}!R${rowNumber}`,
     valueInputOption: "RAW",
     requestBody: { values: [[id]] },
   });

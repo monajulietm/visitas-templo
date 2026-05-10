@@ -108,8 +108,11 @@ adminRoutes.post("/import-sheet", async (c) => {
 
   for (const { row, rowNumber } of rows) {
     try {
-      const existingId = String(row[16] ?? "").trim();
-      if (existingId) { skipped++; continue; }
+      // Column Q (index 16) holds legacy Google Calendar IDs, ignore it.
+      // Column R (index 17) is where our DB reservation IDs live; if present,
+      // this row was already imported.
+      const existingDbId = String(row[17] ?? "").trim();
+      if (existingDbId) { skipped++; continue; }
 
       const fechaRaw = String(row[1] ?? "").trim();
       const fechaMatch = fechaRaw.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);

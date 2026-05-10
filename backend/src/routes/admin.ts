@@ -2,8 +2,9 @@ import { Hono } from "hono";
 import type { Context, Next } from "hono";
 import { prisma } from "../lib/db.js";
 import { AdminLoginSchema, BlockedDateSchema } from "../lib/schemas.js";
-import { issueAdminToken, isValidAdminToken, verifyAdminPassword } from "../lib/auth.js";
+import { issueAdminToken, isValidAdminToken, verifyAdminPassword, newReservationToken } from "../lib/auth.js";
 import { rateLimit } from "../lib/rate-limit.js";
+import { readAllReservationRows, setRowEventId } from "../lib/sheets.js";
 
 export const adminRoutes = new Hono();
 
@@ -94,6 +95,76 @@ adminRoutes.delete("/blocked-dates/:fecha", async (c) => {
   const fecha = c.req.param("fecha");
   await prisma.blockedDate.delete({ where: { fecha } }).catch(() => null);
   return c.json({ ok: true });
+});
+
+adminRoutes.post("/import-sheet", async (c) => {
+  const futureOnly = c.req.query("future") !== "0"; // default true
+  const todayISO = new Date().toISOString().slice(0, 10);
+  const rows = await readAllReservationRows();
+
+  let created = 0;
+  let skipped = 0;
+  const errors: string[] = [];
+
+  for (const { row, rowNumber } of rows) {
+    try {
+      const existingId = String(row[16] ?? "").trim();
+      if (existingId) { skipped++; continue; }
+
+      const fechaRaw = String(row[1] ?? "").trim();
+      const fechaMatch = fechaRaw.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+      if (!fechaMatch) { skipped++; continue; }
+      const fecha = `${fechaMatch[3]}-${fechaMatch[2].padStart(2, "0")}-${fechaMatch[1].padStart(2, "0")}`;
+
+      if (futureOnly && fecha < todayISO) { skipped++; continue; }
+
+      const horaRaw = String(row[2] ?? "").trim().replace(".", ":");
+      const horaMatch = horaRaw.match(/^(\d{1,2})(?::(\d{2}))?$/);
+      if (!horaMatch) { skipped++; continue; }
+      const hora = `${String(parseInt(horaMatch[1], 10)).padStart(2, "0")}:${horaMatch[2] ?? "00"}`;
+
+      const personas = parseInt(String(row[3] ?? "0").trim(), 10) || 0;
+      if (personas < 1) { skipped++; continue; }
+
+      const created_row = await prisma.reservation.create({
+        data: {
+          token: newReservationToken(),
+          nombreInstitucion: String(row[7] ?? "").trim() || "(desconocida)",
+          sectorInstitucion: String(row[8] ?? "").trim() || "(desconocido)",
+          fechaVisita: fecha,
+          horarioVisita: hora,
+          nroPersonas: personas,
+          rangoEdades: String(row[10] ?? "").trim() || "(desconocido)",
+          region: "(histórico)",
+          comuna: String(row[9] ?? "").trim() || "(desconocida)",
+          encargadoVisita: String(row[4] ?? "").trim() || "(desconocido)",
+          idiomaVisita: String(row[11] ?? "").trim() || "Español",
+          propositoVisita: String(row[12] ?? "").trim() || "(desconocido)",
+          telefonoContacto: String(row[6] ?? "").trim().replace(/^'/, ""),
+          correoElectronico: String(row[5] ?? "").trim() || "noemail@example.com",
+          requerimientoParticular: null,
+          cancelled: String(row[4] ?? "").startsWith("[CANCELADA]"),
+        },
+      });
+      await setRowEventId(rowNumber, created_row.id).catch((e) => {
+        errors.push(`row ${rowNumber}: created in DB but failed to write back to Sheet: ${(e as Error).message}`);
+      });
+      created++;
+    } catch (e: any) {
+      errors.push(`row ${rowNumber}: ${e?.message ?? e}`);
+      skipped++;
+    }
+  }
+
+  return c.json({
+    ok: true,
+    futureOnly,
+    todayISO,
+    totalRowsRead: rows.length,
+    created,
+    skipped,
+    errors,
+  });
 });
 
 adminRoutes.get("/stats", async (c) => {

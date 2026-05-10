@@ -226,6 +226,8 @@ function ReservationsList({ token }: { token: string }) {
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("");
+  const [importing, setImporting] = useState(false);
+  const [importMsg, setImportMsg] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
@@ -239,6 +241,21 @@ function ReservationsList({ token }: { token: string }) {
     if (!confirm("¿Eliminar esta reserva permanentemente?")) return;
     await api.adminDeleteReservation(token, id);
     load();
+  }
+
+  async function runImport() {
+    if (!confirm("Importar todas las reservas futuras desde la planilla de Google?")) return;
+    setImporting(true);
+    setImportMsg(null);
+    try {
+      const res = await api.adminImportSheet(token, true);
+      setImportMsg(`Importadas: ${res.created} · Saltadas: ${res.skipped} · Total leídas: ${res.totalRowsRead}${res.errors.length ? ` · Errores: ${res.errors.length}` : ""}`);
+      load();
+    } catch (e: any) {
+      setImportMsg(`Error: ${e.message}`);
+    } finally {
+      setImporting(false);
+    }
   }
 
   const filtered = useMemo(() => {
@@ -256,12 +273,26 @@ function ReservationsList({ token }: { token: string }) {
 
   return (
     <div>
-      <input
-        placeholder="Buscar institución, encargado, correo, fecha…"
-        className="w-full bg-templo-inkLight border border-templo-deepgold/20 rounded-md px-3 py-2 text-sm text-templo-deepgold placeholder:text-templo-deepgold/40 mb-4"
-        value={filter}
-        onChange={(e) => setFilter(e.target.value)}
-      />
+      <div className="flex flex-wrap gap-2 items-center mb-4">
+        <input
+          placeholder="Buscar institución, encargado, correo, fecha…"
+          className="flex-1 min-w-[260px] bg-templo-inkLight border border-templo-deepgold/20 rounded-md px-3 py-2 text-sm text-templo-deepgold placeholder:text-templo-deepgold/40"
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+        />
+        <button
+          onClick={runImport}
+          disabled={importing}
+          className="bg-templo-deepgold text-templo-ink font-medium text-sm px-3 py-2 rounded-md hover:opacity-90 disabled:opacity-50"
+        >
+          {importing ? "Importando…" : "Importar desde planilla"}
+        </button>
+      </div>
+      {importMsg && (
+        <div className="mb-4 text-sm text-templo-deepgold/80 bg-templo-deepgold/10 border border-templo-deepgold/20 rounded-md px-3 py-2">
+          {importMsg}
+        </div>
+      )}
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>

@@ -69,4 +69,9 @@ export const api = {
     }),
   adminUnblockDate: (t: string, fecha: string) =>
     request<{ ok: true }>(`/api/admin/blocked-dates/${fecha}`, { method: "DELETE", adminToken: t }),
+  adminImportSheet: (t: string, futureOnly = true) =>
+    request<{ ok: true; futureOnly: boolean; totalRowsRead: number; created: number; skipped: number; errors: string[] }>(
+      `/api/admin/import-sheet?future=${futureOnly ? 1 : 0}`,
+      { method: "POST", adminToken: t }
+    ),
 };

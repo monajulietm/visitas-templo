@@ -2,14 +2,18 @@
 // matching DB rows. After import, every Sheet row will have its DB id in
 // column Q so future edits/cancellations can find it.
 //
-//   bun run sheet:import          (dry run — shows what would be imported)
-//   bun run sheet:import --apply  (actually writes to DB and Sheet)
+//   bun run sheet:import                 (dry run, all rows)
+//   bun run sheet:import --apply         (write all rows)
+//   bun run sheet:import --future        (dry run, only dates from today onward)
+//   bun run sheet:import --future --apply (write only future rows)
 
 import { prisma } from "../src/lib/db.js";
 import { readAllReservationRows, setRowEventId } from "../src/lib/sheets.js";
 import { newReservationToken } from "../src/lib/auth.js";
 
 const APPLY = process.argv.includes("--apply");
+const FUTURE_ONLY = process.argv.includes("--future");
+const TODAY_ISO = new Date().toISOString().slice(0, 10);
 
 /** "9/09/2022" or "9-09-2022" → "2022-09-09". Accepts dd/MM/yyyy or d/M/yyyy. */
 function parseFecha(s: string): string | null {
@@ -32,6 +36,7 @@ function parseHora(s: string): string | null {
 async function main() {
   const rows = await readAllReservationRows();
   console.log(`📋 Found ${rows.length} rows in Sheet "Registro de Grupos".`);
+  if (FUTURE_ONLY) console.log(`   Filtering to dates ≥ ${TODAY_ISO} (today).`);
 
   let toCreate = 0;
   let skipped = 0;
@@ -48,6 +53,10 @@ async function main() {
     const hora = parseHora(row[2]);
     if (!fecha || !hora) {
       console.warn(`  row ${rowNumber}: skipping — bad fecha/hora (${row[1]} / ${row[2]})`);
+      skipped++;
+      continue;
+    }
+    if (FUTURE_ONLY && fecha < TODAY_ISO) {
       skipped++;
       continue;
     }

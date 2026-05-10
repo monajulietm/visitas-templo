@@ -1,13 +1,33 @@
 node_modules/
 dist/
 build/
+
+# Env / secrets — never commit
 .env
 .env.local
-*.log
+
+# OS / editor cruft
 .DS_Store
+*.log
+
+# SQLite — local dev database, schema lives in prisma/schema.prisma
+*.db
+*.db-journal
 backend/prisma/dev.db
 backend/prisma/dev.db-journal
-backend/prisma/migrations/dev/
-.turbo/
+backend/prisma/prisma/
+
+# Old SQLite migrations folder — we use prisma db push for Postgres in production
+backend/prisma/migrations/
+
+# Vite + TS build artifacts
 .vite/
+*.tsbuildinfo
+frontend/vite.config.ts.timestamp-*.mjs
+
+# Prisma generated client
+backend/node_modules/.prisma/
+
+# Misc
+.turbo/
 coverage/

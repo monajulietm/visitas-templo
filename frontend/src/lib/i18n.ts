@@ -32,6 +32,7 @@ export const dict: Record<Lang, Record<string, string>> = {
     // Slot UI
     pickDateFirst: "Seleccione una fecha primero.",
     loadingSlots: "Consultando disponibilidad…",
+    loadingCalendar: "Cargando disponibilidad…",
     noSlots: "No hay horarios disponibles para esta fecha.",
 
     // Buttons
@@ -94,6 +95,7 @@ export const dict: Record<Lang, Record<string, string>> = {
 
     pickDateFirst: "Please pick a date first.",
     loadingSlots: "Checking availability…",
+    loadingCalendar: "Loading availability…",
     noSlots: "No available times on this date.",
 
     submit: "Submit request",
@@ -152,6 +154,7 @@ export const dict: Record<Lang, Record<string, string>> = {
 
     pickDateFirst: "Selecione uma data primeiro.",
     loadingSlots: "Consultando disponibilidade…",
+    loadingCalendar: "Carregando disponibilidade…",
     noSlots: "Não há horários disponíveis nesta data.",
 
     submit: "Enviar solicitação",

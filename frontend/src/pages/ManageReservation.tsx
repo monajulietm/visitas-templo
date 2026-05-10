@@ -121,8 +121,8 @@ export function ManageReservation() {
     <Page>
       <div className="max-w-xl mx-auto px-4 pt-1 pb-8">
         <header className="text-center mb-5">
-          <img src={TEMPLE_LOGO} alt="Templo Bahá'í de Sudamérica" className="mx-auto block w-full max-w-md" />
-          <h1 className="font-serif text-3xl md:text-4xl text-templo-brown mt-3">{t(lang, "manageTitle")}</h1>
+          <img src={TEMPLE_LOGO} alt="Templo Bahá'í de Sudamérica" className="mx-auto block w-full max-w-[260px]" />
+          <h1 className="font-serif text-2xl md:text-3xl text-templo-brown mt-3">{t(lang, "manageTitle")}</h1>
           <div className="inline-flex items-center gap-1 mt-3 bg-white border border-templo-brown/15 rounded-full p-1">
             {(["es", "en", "pt"] as Lang[]).map((l) => (
               <button

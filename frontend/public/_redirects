@@ -1,0 +1,2 @@
+# SPA fallback — every unmatched route serves index.html so React Router can handle it
+/*    /index.html   200

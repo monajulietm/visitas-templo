@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { api } from "../lib/api";
 import { cn } from "../lib/cn";
+import { t, type Lang } from "../lib/i18n";
 
 type Props = {
   value?: string; // YYYY-MM-DD
@@ -9,7 +10,7 @@ type Props = {
   /** Minimum bookable date (YYYY-MM-DD), inclusive. */
   minDate: string;
   /** Locale for month/weekday labels. */
-  locale?: "es" | "en" | "pt";
+  locale?: Lang;
 };
 
 const MONTHS = {
@@ -64,13 +65,13 @@ export function Calendar({ value, onChange, minDate, locale = "es" }: Props) {
   return (
     <div className="border border-templo-brown/15 rounded-lg bg-white p-2.5 max-w-[320px]">
       <div className="flex items-center justify-between mb-1.5">
-        <button type="button" onClick={() => nav(-1)} className="p-0.5 rounded hover:bg-templo-gold/30">
+        <button type="button" onClick={() => nav(-1)} disabled={loading} className="p-0.5 rounded hover:bg-templo-gold/30 disabled:opacity-40">
           <ChevronLeft size={16} className="text-templo-brown" />
         </button>
         <div className="font-serif text-templo-brown text-sm">
           {MONTHS[locale][view.month - 1]} {view.year}
         </div>
-        <button type="button" onClick={() => nav(1)} className="p-0.5 rounded hover:bg-templo-gold/30">
+        <button type="button" onClick={() => nav(1)} disabled={loading} className="p-0.5 rounded hover:bg-templo-gold/30 disabled:opacity-40">
           <ChevronRight size={16} className="text-templo-brown" />
         </button>
       </div>
@@ -79,42 +80,50 @@ export function Calendar({ value, onChange, minDate, locale = "es" }: Props) {
           <div key={w} className="text-center py-0.5 uppercase tracking-wide">{w}</div>
         ))}
       </div>
-      <div className="grid grid-cols-7 gap-0.5">
-        {cells.map((d, i) => {
-          if (!d) return <div key={i} />;
-          const fecha = ymd(view.year, view.month, d);
-          const dow = new Date(view.year, view.month - 1, d).getDay();
-          const closedDay = dow === 0 || dow === 1;
-          const beforeMin = fecha < minDate;
-          const isBlocked = blocked.has(fecha);
-          const disabled = closedDay || beforeMin || isBlocked || loading;
-          const selected = value === fecha;
-          return (
-            <button
-              type="button"
-              key={i}
-              disabled={disabled}
-              onClick={() => onChange(fecha)}
-              className={cn(
-                "h-7 text-xs rounded transition flex items-center justify-center",
-                selected
-                  ? "bg-templo-gold text-templo-brown font-medium"
-                  : disabled
-                  ? "text-templo-brown/25 cursor-not-allowed"
-                  : "text-templo-brown hover:bg-templo-gold/30"
-              )}
-              title={
-                closedDay ? "Cerrado domingos y lunes"
-                : isBlocked ? "Sin disponibilidad"
-                : beforeMin ? "Mínimo 7 días de anticipación"
-                : undefined
-              }
-            >
-              {d}
-            </button>
-          );
-        })}
-      </div>
+
+      {loading ? (
+        <div className="flex flex-col items-center justify-center gap-2 py-12 text-templo-brown/70">
+          <Loader2 size={28} className="animate-spin text-templo-goldDeep" />
+          <span className="text-xs">{t(locale, "loadingCalendar")}</span>
+        </div>
+      ) : (
+        <div className="grid grid-cols-7 gap-0.5">
+          {cells.map((d, i) => {
+            if (!d) return <div key={i} />;
+            const fecha = ymd(view.year, view.month, d);
+            const dow = new Date(view.year, view.month - 1, d).getDay();
+            const closedDay = dow === 0 || dow === 1;
+            const beforeMin = fecha < minDate;
+            const isBlocked = blocked.has(fecha);
+            const disabled = closedDay || beforeMin || isBlocked;
+            const selected = value === fecha;
+            return (
+              <button
+                type="button"
+                key={i}
+                disabled={disabled}
+                onClick={() => onChange(fecha)}
+                className={cn(
+                  "h-7 text-xs rounded transition flex items-center justify-center",
+                  selected
+                    ? "bg-templo-gold text-templo-brown font-medium"
+                    : disabled
+                    ? "text-templo-brown/25 cursor-not-allowed"
+                    : "text-templo-brown hover:bg-templo-gold/30"
+                )}
+                title={
+                  closedDay ? "Cerrado domingos y lunes"
+                  : isBlocked ? "Sin disponibilidad"
+                  : beforeMin ? "Mínimo 7 días de anticipación"
+                  : undefined
+                }
+              >
+                {d}
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

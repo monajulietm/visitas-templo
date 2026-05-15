@@ -130,7 +130,14 @@ async function send(to: string, subject: string, html: string) {
     return { stubbed: true };
   }
   try {
-    const result = await resend.emails.send({ from: fromEmail, to, subject, html });
+    const replyTo = process.env.EMAIL_REPLY_TO || undefined;
+    const result = await resend.emails.send({
+      from: fromEmail,
+      to,
+      subject,
+      html,
+      ...(replyTo ? { replyTo } : {}),
+    });
     return result;
   } catch (err) {
     console.error("[email] send failed:", err);

@@ -1,6 +1,50 @@
 import { prisma } from "./db.js";
 import { isChileanHoliday } from "./holidays.js";
 import { getFeriadoForDate, getFeriadosFromSheet } from "./feriados-sheet.js";
+import { getDbIdsPresentInSheet } from "./sheets.js";
+import { deleteCalendarEvent } from "./calendar.js";
+
+// Sheet → DB reconciliation: run at most once per minute. When the user
+// manually deletes a row from the sheet, the matching DB reservation is
+// purged (along with its calendar event) so the slot frees up.
+const RECONCILE_TTL_MS = 60 * 1000;
+const NEW_ROW_GRACE_MS = 60 * 1000; // don't delete rows younger than this
+let lastReconcileAt = 0;
+let reconcileInFlight: Promise<void> | null = null;
+
+async function reconcileWithSheet(): Promise<void> {
+  if (Date.now() - lastReconcileAt < RECONCILE_TTL_MS) return;
+  if (reconcileInFlight) return reconcileInFlight;
+  reconcileInFlight = (async () => {
+    try {
+      const sheetIds = await getDbIdsPresentInSheet();
+      // Safety: if the sheet read failed or returned empty, don't delete anything.
+      if (sheetIds.size === 0) return;
+      const cutoff = new Date(Date.now() - NEW_ROW_GRACE_MS);
+      const candidates = await prisma.reservation.findMany({
+        where: { createdAt: { lt: cutoff } },
+        select: { id: true, calendarEventId: true },
+      });
+      const orphans = candidates.filter((r) => !sheetIds.has(r.id));
+      if (orphans.length === 0) return;
+      for (const o of orphans) {
+        if (o.calendarEventId) {
+          await deleteCalendarEvent(o.calendarEventId).catch(() => null);
+        }
+      }
+      await prisma.reservation.deleteMany({
+        where: { id: { in: orphans.map((r) => r.id) } },
+      });
+      console.log(`[sync] removed ${orphans.length} DB rows missing from sheet`);
+    } catch (err) {
+      console.error("[sync] reconcile failed:", err);
+    } finally {
+      lastReconcileAt = Date.now();
+      reconcileInFlight = null;
+    }
+  })();
+  return reconcileInFlight;
+}
 
 export const ALL_SLOTS = ["10:00", "11:00", "12:00", "15:00", "16:00"] as const;
 export const MORNING_SLOTS = ["10:00", "11:00", "12:00"] as const;
@@ -42,6 +86,9 @@ export async function getAvailability(fecha: string): Promise<{
   reason?: string;
   slots: SlotInfo[];
 }> {
+  // Lazy sync: detect sheet-side deletions before computing availability.
+  await reconcileWithSheet();
+
   if (!isMinAdvance(fecha)) {
     return {
       fecha,
@@ -135,6 +182,8 @@ export async function getMonthBlockedDates(
   year: number,
   month: number
 ): Promise<string[]> {
+  // Lazy sync: detect sheet-side deletions before computing availability.
+  await reconcileWithSheet();
   // Pre-warm the feriados cache with one Sheets read for the whole month
   // (otherwise each day would trigger a fresh lookup).
   await getFeriadosFromSheet();

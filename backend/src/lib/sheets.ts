@@ -224,6 +224,33 @@ export async function setRowEventId(rowNumber: number, id: string): Promise<void
   });
 }
 
+/** Return every DB reservation id currently present in the sheet's columns Q
+ * and R. Used by the reconcile loop to detect rows the user deleted manually. */
+export async function getDbIdsPresentInSheet(): Promise<Set<string>> {
+  const ctx = getClient();
+  if (!ctx) return new Set();
+  try {
+    const sheets = google.sheets({ version: "v4", auth: ctx.auth });
+    const res = await sheets.spreadsheets.values.get({
+      spreadsheetId: ctx.sheetId,
+      range: `${ctx.tab}!Q:R`,
+    });
+    const col = res.data.values ?? [];
+    const ids = new Set<string>();
+    for (const row of col) {
+      const q = String(row?.[0] ?? "").trim();
+      const r = String(row?.[1] ?? "").trim();
+      // Skip Google Calendar IDs (legacy values in column Q have "@" in them)
+      if (q && !q.includes("@")) ids.add(q);
+      if (r && !r.includes("@")) ids.add(r);
+    }
+    return ids;
+  } catch (err) {
+    console.error("[sheets] getDbIdsPresentInSheet failed:", err);
+    return new Set();
+  }
+}
+
 /** Clear column R for any rows whose DB id is in the given set. Best-effort. */
 export async function clearRowEventIdsForDbIds(dbIds: Set<string>): Promise<number> {
   if (dbIds.size === 0) return 0;

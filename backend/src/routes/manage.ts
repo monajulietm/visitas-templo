@@ -5,6 +5,7 @@ import { getAvailability, isMinAdvance } from "../lib/availability.js";
 import { sendUpdateEmail } from "../lib/email.js";
 import { isChileanHoliday } from "../lib/holidays.js";
 import { updateReservationInSheet, deleteReservationRowInSheet } from "../lib/sheets.js";
+import { updateCalendarEvent, deleteCalendarEvent } from "../lib/calendar.js";
 
 export const manageRoutes = new Hono();
 
@@ -67,6 +68,7 @@ manageRoutes.patch("/:token", async (c) => {
   const frontendUrl = process.env.FRONTEND_URL || "http://localhost:8000";
   void sendUpdateEmail(updated, frontendUrl);
   void updateReservationInSheet(updated);
+  void updateCalendarEvent(updated);
 
   return c.json({ ok: true, reservation: updated });
 });
@@ -75,7 +77,8 @@ manageRoutes.delete("/:token", async (c) => {
   const token = c.req.param("token");
   const r = await prisma.reservation.findUnique({ where: { token } });
   if (!r) return c.json({ error: "Reserva no encontrada" }, 404);
-  // Delete the sheet row first (best effort), then hard-delete the DB row.
+  // Best effort: delete calendar event and sheet row, then hard-delete the DB row.
+  if (r.calendarEventId) await deleteCalendarEvent(r.calendarEventId);
   await deleteReservationRowInSheet(r);
   await prisma.reservation.delete({ where: { token } });
   return c.json({ ok: true });

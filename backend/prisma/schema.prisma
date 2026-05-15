@@ -27,6 +27,7 @@ model Reservation {
   telefonoContacto         String
   correoElectronico        String
   requerimientoParticular  String?
+  calendarEventId          String?  // Google Calendar event id, set after creation
   cancelled                Boolean  @default(false)
   createdAt                DateTime @default(now())
 

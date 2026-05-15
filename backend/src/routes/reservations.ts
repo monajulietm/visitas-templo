@@ -13,6 +13,7 @@ import { newReservationToken } from "../lib/auth.js";
 import { verifyCaptcha } from "../lib/captcha.js";
 import { sendConfirmationEmail } from "../lib/email.js";
 import { logReservationToSheet } from "../lib/sheets.js";
+import { createCalendarEvent } from "../lib/calendar.js";
 import { isChileanHoliday } from "../lib/holidays.js";
 
 export const reservationRoutes = new Hono();
@@ -127,6 +128,15 @@ reservationRoutes.post("/", async (c) => {
   // Fire-and-forget side effects.
   void sendConfirmationEmail(reservation, frontendUrl);
   void logReservationToSheet(reservation);
+  // Calendar: create event, then store its id on the reservation (best effort).
+  void createCalendarEvent(reservation).then(async (eventId) => {
+    if (eventId) {
+      await prisma.reservation.update({
+        where: { id: reservation.id },
+        data: { calendarEventId: eventId },
+      }).catch((e) => console.error("[reservations] failed to save calendarEventId:", e));
+    }
+  });
 
   return c.json({
     ok: true,

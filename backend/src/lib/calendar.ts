@@ -35,13 +35,10 @@ function buildEventBody(r: Reservation) {
   const start = new Date(y, m - 1, d, hh, mm, 0, 0);
   const end = new Date(start.getTime() + VISIT_DURATION_MINUTES * 60 * 1000);
 
-  const attendees: { email: string }[] = [];
-  if (process.env.CALENDAR_INVITE_EMAIL) {
-    attendees.push({ email: process.env.CALENDAR_INVITE_EMAIL });
-  }
-  if (r.correoElectronico && /@/.test(r.correoElectronico)) {
-    attendees.push({ email: r.correoElectronico });
-  }
+  // NOTE: we deliberately do NOT add attendees. Service accounts can't invite
+  // attendees without Domain-Wide Delegation (a Workspace-admin feature).
+  // The event still lives on the calendar; notifications are handled by
+  // a separate Resend email to CALENDAR_INVITE_EMAIL.
 
   const descriptionLines = [
     `Encargado: ${r.encargadoVisita}`,
@@ -65,7 +62,6 @@ function buildEventBody(r: Reservation) {
     location: "Templo Bahá'í de Sudamérica, Av. Diag. Las Torres 2000, Peñalolén, Santiago, Chile",
     start: { dateTime: toLocalIso(start), timeZone: TIMEZONE },
     end: { dateTime: toLocalIso(end), timeZone: TIMEZONE },
-    attendees,
   };
 }
 
@@ -80,7 +76,7 @@ export async function createCalendarEvent(r: Reservation): Promise<string | null
     const calendar = google.calendar({ version: "v3", auth: ctx.auth });
     const res = await calendar.events.insert({
       calendarId: ctx.calendarId,
-      sendUpdates: "all",       // emails the attendees the invite
+      sendUpdates: "none",      // no attendees, no invite emails (handled by Resend separately)
       requestBody: buildEventBody(r),
     });
     return res.data.id ?? null;
@@ -100,7 +96,7 @@ export async function updateCalendarEvent(r: Reservation): Promise<void> {
     await calendar.events.update({
       calendarId: ctx.calendarId,
       eventId: r.calendarEventId,
-      sendUpdates: "all",
+      sendUpdates: "none",
       requestBody: buildEventBody(r),
     });
   } catch (err) {
@@ -117,7 +113,7 @@ export async function deleteCalendarEvent(eventId: string): Promise<void> {
     await calendar.events.delete({
       calendarId: ctx.calendarId,
       eventId,
-      sendUpdates: "all",
+      sendUpdates: "none",
     });
   } catch (err) {
     console.error("[calendar] delete failed:", err);

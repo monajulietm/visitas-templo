@@ -154,3 +154,53 @@ export async function sendUpdateEmail(r: Reservation, frontendUrl: string) {
   const html = buildHtml(r, frontendUrl, "update");
   return send(r.correoElectronico, "Actualización de su visita al Templo Bahá'í", html);
 }
+
+/** Plain-prose notification to staff (visitas@bahai.cl + admin) when a new
+ * reservation comes in. Used in place of the Calendar invite email since
+ * service accounts can't send those. */
+export async function sendStaffNotificationEmail(r: Reservation): Promise<void> {
+  const staffEmails = (process.env.STAFF_NOTIFICATION_EMAILS || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (staffEmails.length === 0) return;
+  if (!resend) {
+    console.log(`[email:stub] would notify staff ${staffEmails.join(", ")} of reservation ${r.id}`);
+    return;
+  }
+  const subject = `Nueva reserva: ${r.nombreInstitucion} — ${r.fechaVisita} ${r.horarioVisita}`;
+  const html = `<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8" /></head>
+<body style="margin:0;padding:24px;background:#fffdf6;font-family:'Cormorant Garamond',Georgia,serif;color:#403923;">
+  <div style="max-width:600px;margin:0 auto;background:#fff;border:1px solid #fbdb94;border-radius:8px;padding:24px;">
+    <h1 style="margin:0 0 12px;font-size:22px;font-weight:500;color:#403923;">Nueva solicitud de visita</h1>
+    <table style="width:100%;border-collapse:collapse;font-size:15px;">
+      <tr><td style="padding:6px 0;color:#403923;opacity:0.7;width:42%;">Institución</td><td style="padding:6px 0;text-align:right;font-weight:500;">${r.nombreInstitucion}</td></tr>
+      <tr><td style="padding:6px 0;color:#403923;opacity:0.7;">Fecha</td><td style="padding:6px 0;text-align:right;font-weight:500;">${formatFecha(r.fechaVisita)}</td></tr>
+      <tr><td style="padding:6px 0;color:#403923;opacity:0.7;">Horario</td><td style="padding:6px 0;text-align:right;font-weight:500;">${formatHora(r.horarioVisita)}</td></tr>
+      <tr><td style="padding:6px 0;color:#403923;opacity:0.7;">Personas</td><td style="padding:6px 0;text-align:right;font-weight:500;">${r.nroPersonas}</td></tr>
+      <tr><td style="padding:6px 0;color:#403923;opacity:0.7;">Encargado</td><td style="padding:6px 0;text-align:right;font-weight:500;">${r.encargadoVisita}</td></tr>
+      <tr><td style="padding:6px 0;color:#403923;opacity:0.7;">Sector</td><td style="padding:6px 0;text-align:right;font-weight:500;">${r.sectorInstitucion}</td></tr>
+      <tr><td style="padding:6px 0;color:#403923;opacity:0.7;">Idioma</td><td style="padding:6px 0;text-align:right;font-weight:500;">${r.idiomaVisita}</td></tr>
+      <tr><td style="padding:6px 0;color:#403923;opacity:0.7;">Propósito</td><td style="padding:6px 0;text-align:right;font-weight:500;">${r.propositoVisita}</td></tr>
+      <tr><td style="padding:6px 0;color:#403923;opacity:0.7;">Comuna</td><td style="padding:6px 0;text-align:right;font-weight:500;">${r.region} / ${r.comuna}</td></tr>
+      <tr><td style="padding:6px 0;color:#403923;opacity:0.7;">Teléfono</td><td style="padding:6px 0;text-align:right;font-weight:500;">${r.telefonoContacto}</td></tr>
+      <tr><td style="padding:6px 0;color:#403923;opacity:0.7;">Correo</td><td style="padding:6px 0;text-align:right;font-weight:500;">${r.correoElectronico}</td></tr>
+      ${r.requerimientoParticular ? `<tr><td style="padding:6px 0;color:#403923;opacity:0.7;">Requerimientos</td><td style="padding:6px 0;text-align:right;font-weight:500;">${r.requerimientoParticular}</td></tr>` : ""}
+    </table>
+    <p style="margin:18px 0 0;font-size:13px;color:#403923;opacity:0.75;">El evento también se agregó al calendario de visitas@bahai.cl.</p>
+  </div>
+</body></html>`;
+  try {
+    const replyTo = process.env.EMAIL_REPLY_TO || undefined;
+    await resend.emails.send({
+      from: fromEmail,
+      to: staffEmails,
+      subject,
+      html,
+      ...(replyTo ? { replyTo } : {}),
+    });
+  } catch (err) {
+    console.error("[email] staff notify failed:", err);
+  }
+}

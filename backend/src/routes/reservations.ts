@@ -11,7 +11,7 @@ import {
 import { ReservationCreateSchema } from "../lib/schemas.js";
 import { newReservationToken } from "../lib/auth.js";
 import { verifyCaptcha } from "../lib/captcha.js";
-import { sendConfirmationEmail } from "../lib/email.js";
+import { sendConfirmationEmail, sendStaffNotificationEmail } from "../lib/email.js";
 import { logReservationToSheet } from "../lib/sheets.js";
 import { createCalendarEvent } from "../lib/calendar.js";
 import { isChileanHoliday } from "../lib/holidays.js";
@@ -127,6 +127,7 @@ reservationRoutes.post("/", async (c) => {
   const frontendUrl = process.env.FRONTEND_URL || "http://localhost:8000";
   // Fire-and-forget side effects.
   void sendConfirmationEmail(reservation, frontendUrl);
+  void sendStaffNotificationEmail(reservation);
   void logReservationToSheet(reservation);
   // Calendar: create event, then store its id on the reservation (best effort).
   void createCalendarEvent(reservation).then(async (eventId) => {
